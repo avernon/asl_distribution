@@ -1,0 +1,91 @@
+# Copyright (c) 2013 - 2014, AllSeen Alliance. All rights reserved.
+#
+#    Contributed by Qualcomm Connected Experiences, Inc.,
+#    with authorization from the AllSeen Alliance, Inc.
+#    
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#    
+#        http://www.apache.org/licenses/LICENSE-2.0
+#    
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#    
+#    Pursuant to Section 1 of the License, the work of authorship constituting
+#    a Work and any Contribution incorporated in the Work shall mean only that
+#    Contributor's code submissions authored by that Contributor.  Any rights
+#    granted under the License are conditioned upon acceptance of these
+#    clarifications.
+
+import os
+
+Import('env')
+
+env['_ALLJOYN_SERVICES_COMMON_'] = True
+
+build_all = ARGUMENTS.get('ALL', 0)
+if 'java' in env['bindings']:
+    build_all = 1
+
+if int(build_all):   
+    build_notification = 1
+    build_cps          = 1
+    if not 'cpp' in env['bindings']:
+        build_onboarding = 1
+        build_config     = 1
+    else:
+        build_onboarding = 0
+        build_config     = 0
+else:
+    build_config       = int(ARGUMENTS.get('CONFIG',       0))
+    build_notification = int(ARGUMENTS.get('NOTIFICATION', 0))
+    build_cps          = int(ARGUMENTS.get('CPS',          0))
+    build_onboarding   = int(ARGUMENTS.get('ONBOARDING',   0))
+
+if not env.has_key('_ALLJOYN_ABOUT_') and os.path.exists('../../core/alljoyn/services/about/SConscript'):
+    env.SConscript('../../core/alljoyn/services/about/SConscript')
+
+if not env.has_key('_ALLJOYN_SERVICES_COMMON_') and os.path.exists('../../services/services_common/SConscript'):
+    env.SConscript('../../services/services_common/SConscript')
+
+if build_config:
+    env.Append(CPPDEFINES = '_CONFIG_')
+    if not env.has_key('_ALLJOYN_CONFIG_') and os.path.exists('../../services/config/SConscript'):
+        env.SConscript('../../services/config/SConscript')
+
+if build_notification:
+    env.Append(CPPDEFINES = '_NOTIFICATION_')
+    if not env.has_key('_ALLJOYN_NOTIFICATION_') and os.path.exists('../../services/notification/SConscript'):
+        env.SConscript('../../services/notification/SConscript')
+
+if build_cps:
+    env.Append(CPPDEFINES = '_CONTROLPANEL_')
+    if not env.has_key('_ALLJOYN_CONTROLPANEL_') and os.path.exists('../../services/controlpanel/SConscript'):
+        env.SConscript('../../services/controlpanel/SConscript')
+
+if build_onboarding:
+    env.Append(CPPDEFINES = '_ONBOARDING_')
+    if not env.has_key('_ALLJOYN_ONBOARDING_') and os.path.exists('../../services/onboarding/SConscript'):
+        env.SConscript('../../services/onboarding/SConscript')
+
+if 'cpp' in env['bindings'] and not env.has_key('_ALLJOYNCORE_') and os.path.exists('../../core/alljoyn/alljoyn_core/SConscript'):
+    env.SConscript('../../core/alljoyn/alljoyn_core/SConscript')
+
+if 'java' in env['bindings'] and not env.has_key('_ALLJOYN_JAVA_') and os.path.exists('../../core/alljoyn/alljoyn_java/SConscript'):
+    env.SConscript('../../core/alljoyn/alljoyn_java/SConscript')
+
+server_sample_env = env.Clone()
+
+for b in server_sample_env['bindings']:
+    if os.path.exists('%s/SConscript' % b):
+        services_common_env.VariantDir('$OBJDIR/%s' % b, b, duplicate = 0)
+
+services_common_env.SConscript(['$OBJDIR/%s/SConscript' % b for b in env['bindings'] if os.path.exists('%s/SConscript' % b) ],
+                      exports = ['services_common_env'])
+
+server_sample_env.SConscript(['$OBJDIR/%s/SConscript' % b for b in env['bindings'] if os.path.exists('%s/SConscript' % b) ],
+                   exports = ['server_sample_env'])

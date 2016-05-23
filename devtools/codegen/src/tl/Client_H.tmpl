@@ -1,0 +1,94 @@
+###############################################################################
+## Copyright (c) 2013, 2014 AllSeen Alliance. All rights reserved.
+##
+## Contributed by Qualcomm Connected Experiences, Inc.,
+## with authorization from the AllSeen Alliance, Inc.
+## 
+## Licensed under the Apache License, Version 2.0 (the "License");
+## you may not use this file except in compliance with the License.
+## You may obtain a copy of the License at
+## 
+##     http://www.apache.org/licenses/LICENSE-2.0
+## 
+## Unless required by applicable law or agreed to in writing, software
+## distributed under the License is distributed on an "AS IS" BASIS,
+## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+## See the License for the specific language governing permissions and
+## limitations under the License.
+## 
+## Pursuant to Section 1 of the License, the work of authorship constituting
+## a Work and any Contribution incorporated in the Work shall mean only that
+## Contributor's code submissions authored by that Contributor.  Any rights
+## granted under the License are conditioned upon acceptance of these
+## clarifications.
+###############################################################################
+#ifndef _CLIENT_H
+#define _CLIENT_H
+
+/* Source: "$command_line.xml_input_file" */
+
+\#include <ajtcl/alljoyn.h>
+#for $key in sorted($service.interfaces)
+    #set $i = $service.interfaces[$key]
+\#include "Client${i.interface_full_name}.h"
+#end for
+
+\#define TIMEOUT_UNMARSHAL  (1000 * 4)
+\#define TIMEOUT_METHOD     (100 * 10)
+
+extern char g_ServiceName[];
+
+/**
+ * Callback function prototype for a client callback function to GET a property.
+ * This function has to unmarshal the expected property value.
+ *
+ * @param replyMsg  The GET_PROPERTY reply message
+ * @param context   The caller provided context from the table PropHandlers_XXXX[].
+ *
+ * @return  Return AJ_Status
+ *          - AJ_OK if the property was unmarshaled and used succesfully.
+ *          - An error status if an error occurred.
+ */
+typedef AJ_Status (*AJ_ClientPropGetCallback)(AJ_Message* replyMsg, void* context);
+
+/**
+ * Type to describe a mapping of property replySerial to the appropriate get
+ * handler with context pointer.
+ */
+typedef struct {
+    uint32_t replySerial;
+    AJ_ClientPropGetCallback callback;
+    void* context;
+} ClientPropHandlerEntry;
+
+/******
+ * The property handlers table(s). There is one table for each instance of
+ * an object (node) that has properties. Each table has an entry for each
+ * property in the interfaces of that object. These are used in ClientMain.c to
+ * call back the appropriate client handler when a property is retrieved from a
+ * service.
+ */
+#for $o in $service.get_objects()
+    #if $o.has_properties()
+extern ClientPropHandlerEntry PropHandlers$o.get_full_coded_name()[];
+    #end if
+#end for
+
+/**
+ * This function is in ClientMain.c and is used to set the expected replySerial
+ * in the supplied PropHandlers_XXXX[] table. This enables ClientMain to find
+ * the callback expecting a property value to be returned.
+ *
+ * @param table  The table to set the replySerial value in.
+ * @param callback The callback expecting the property value.
+ * @param replySerial The serial number of the reply which contains the property value.
+ *
+ * @return  Return AJ_Status
+ *          - AJ_OK if successful.
+ *          - An error status if an error occurred.
+ */
+AJ_Status SetPropHandlerReplySerial(ClientPropHandlerEntry* table,
+                                    AJ_ClientPropGetCallback callback,
+                                    uint32_t replySerial);
+
+#endif /* _CLIENT_H */

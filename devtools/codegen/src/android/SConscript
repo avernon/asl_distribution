@@ -1,0 +1,38 @@
+# Copyright (c) 2014 AllSeen Alliance. All rights reserved.
+#
+#    Contributed by Qualcomm Connected Experiences, Inc.,
+#    with authorization from the AllSeen Alliance, Inc.
+#    
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#    
+#        http://www.apache.org/licenses/LICENSE-2.0
+#    
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#    
+#    Pursuant to Section 1 of the License, the work of authorship constituting
+#    a Work and any Contribution incorporated in the Work shall mean only that
+#    Contributor's code submissions authored by that Contributor.  Any rights
+#    granted under the License are conditioned upon acceptance of these
+#    clarifications.
+
+import os
+import fnmatch
+Import('env')
+
+# This will include all the python files as dependencies.
+# No need to actually do anything with 'python_files' after the assignment.
+# Run scons --tree=all to verify.
+python_files = Glob("*.py")
+template_files = Glob("*.tmpl")
+
+for f in template_files:
+    file_name = f.__str__()
+    end = len(file_name) - len(".tmpl")
+    base_name = file_name[:end]
+    env.Cheetah(base_name, base_name)

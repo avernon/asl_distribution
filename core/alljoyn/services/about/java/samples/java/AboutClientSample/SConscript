@@ -1,0 +1,36 @@
+# Copyright AllSeen Alliance. All rights reserved.
+#
+#    Contributed by Qualcomm Connected Experiences, Inc.,
+#    with authorization from the AllSeen Alliance, Inc.
+#    
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#    
+#        http://www.apache.org/licenses/LICENSE-2.0
+#    
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#    
+#    Pursuant to Section 1 of the License, the work of authorship constituting
+#    a Work and any Contribution incorporated in the Work shall mean only that
+#    Contributor's code submissions authored by that Contributor.  Any rights
+#    granted under the License are conditioned upon acceptance of these
+#    clarifications.
+
+Import('sample_env')
+
+classes = sample_env.Java(sample_env.Dir('$OBJDIR_ABOUT/java/samples/classes').srcnode(), 'src')
+sample_env.Depends(classes, sample_env['dep_jars'])
+# scons does not have support for Java 7 yet.  When building with Java 7 an
+# additional class is generated that scons is unaware of. So we apply a work around
+# to clean the class and to make sure the class is included in the resulting jar
+# file
+sample_env.Clean(classes, sample_env.Dir('$OBJDIR_ABOUT/java/samples/classes').srcnode())
+
+jar = sample_env.Jar(target = 'about_client_sample_legacy', source = [sample_env.Dir('$OBJDIR_ABOUT/java/samples/classes').srcnode(), 'MANIFEST.MF'], JARCHDIR='$SOURCE')
+
+Return('jar')

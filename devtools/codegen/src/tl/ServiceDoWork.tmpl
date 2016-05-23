@@ -1,0 +1,250 @@
+###############################################################################
+## Copyright (c) 2013, 2014 AllSeen Alliance. All rights reserved.
+##
+## Contributed by Qualcomm Connected Experiences, Inc.,
+## with authorization from the AllSeen Alliance, Inc.
+## 
+## Licensed under the Apache License, Version 2.0 (the "License");
+## you may not use this file except in compliance with the License.
+## You may obtain a copy of the License at
+## 
+##     http://www.apache.org/licenses/LICENSE-2.0
+## 
+## Unless required by applicable law or agreed to in writing, software
+## distributed under the License is distributed on an "AS IS" BASIS,
+## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+## See the License for the specific language governing permissions and
+## limitations under the License.
+## 
+## Pursuant to Section 1 of the License, the work of authorship constituting
+## a Work and any Contribution incorporated in the Work shall mean only that
+## Contributor's code submissions authored by that Contributor.  Any rights
+## granted under the License are conditioned upon acceptance of these
+## clarifications.
+###############################################################################
+#import GenTL
+#import CommonCheetah as cc
+/* Source: "$command_line.xml_input_file" */
+
+/**
+ * Per-module definition of the current module for debug logging. Must be defined
+ * prior to first inclusion of aj_debug.h
+ */
+\#define AJ_MODULE SERVICEDOWORK
+
+\#include "Service.h"
+
+/**
+ * Turn on per-module debug printing by setting this variable to non-zero value
+ * (usually in debugger).
+ */
+uint8_t dbgSERVICEDOWORK = 1;
+
+#if $command_line.runnable
+$GenTL.comment_start_runnable
+static AJ_SessionId s_activeSessions[5];
+static const size_t s_maxSessions = ArraySize(s_activeSessions);
+$GenTL.comment_end_runnable
+#end if
+#set $number_of_signals = 0
+#for $key in $sorted($service.interfaces)
+    #set $interface = $service.interfaces[$key]
+    #for $o in $interface.parents
+        #set $iface_index = $o.get_interface_index($interface)
+        #set $comp = $GenTL.get_interface_components($interface, $o, $iface_index, True)
+        #for $c in $comp:
+            #if $c.comp_type == "sig"
+                #set $number_of_signals += 1
+            #end if
+        #end for
+    #end for
+#end for
+#if not $command_line.runnable or $number_of_signals == 0
+\#ifndef AJCG_NO_UNUSED_WARNING
+\#define AJCG_NO_UNUSED_WARNING(v) v = v
+\#endif
+#end if
+
+/*
+ * Let the application do some work.
+ *
+ * This function is called via a timer.
+ */
+void ServiceAppDoWork(void* context)
+{
+    AJ_BusAttachment* bus = (AJ_BusAttachment*)context;
+
+#if $command_line.runnable and $number_of_signals > 0
+    $GenTL.comment_start_runnable
+
+    /* Only a small number of messages can be queued up before returning
+     * control to AllJoyn so it can send them out and receive messages.
+     * So what we do here for demonstration purposes is "take turns" sending
+     * messages for each of the signals. */
+    const int numberOfSignals = $number_of_signals;
+    static int s_turn = 0;
+
+    #set $component = 0
+    #for $key in $sorted($service.interfaces)
+        #set $interface = $service.interfaces[$key]
+        #for $o in $interface.parents
+            #set $iface_index = $o.get_interface_index($interface)
+            #set $comp = $GenTL.get_interface_components($interface, $o, $iface_index, False)
+            #for $c in $comp
+                ## Only signals messages originate from the service.
+                #if $c.comp_type != "sig"
+                    #continue
+                #end if
+                #set $complete_name = $GenTL.get_complete_name($o, $interface, $c)
+    if ($component == s_turn) {
+                #set $free_list = []
+                #if $c.output_arg_info is not None
+                    #set $output_args = $c.output_arg_info.args
+                #else
+                    #set $output_args = None
+                #end if
+                #if len($output_args) > 0
+$cc.CommonCheetah.define_static_args($output_args, 8)#slurp
+
+        /* Define the output args. */
+                #end if
+$cc.CommonCheetah.define_arguments($output_args, 8, $free_list)
+        AJ_Status ajcgStatus;
+        size_t agcgSessionIndex;
+                #set $number_of_arrays = $c.max_input_output_arrays()
+                #set $array_num = 0
+                #while $array_num < $number_of_arrays
+        int index$array_num = 0;
+                    #set $array_num += 1
+                #end while
+                #if len($output_args) > 0
+
+$cc.CommonCheetah.initialize_args($output_args, $complete_name, 8)#slurp
+                #end if
+
+        for (agcgSessionIndex = 0; agcgSessionIndex < s_maxSessions; agcgSessionIndex++) {
+            AJ_SessionId sessionId = s_activeSessions[agcgSessionIndex];
+
+            if (0 != sessionId) {
+                #if $output_args is not None
+                ajcgStatus = ${c.name}(bus, sessionId#slurp
+                    #for $a in $output_args
+, $a.name#slurp
+                        #if $a.is_array()
+, ${a.name}Elements#slurp
+                        #end if
+                    #end for
+);
+                #else
+                ajcgStatus = ${c.name}(bus, sessionId);
+                #end if
+
+                AJ_AlwaysPrintf(("Sending signal '$complete_name' to sessionId 0x%x.\n", sessionId));
+
+                if (AJ_OK != ajcgStatus) {
+                    const char* statusText = AJ_StatusText(ajcgStatus);
+
+                    AJ_AlwaysPrintf(("Calling '$complete_name' with session ID 0x%x failed with status code 0x%x (%s).\n",
+                                     sessionId, ajcgStatus, statusText));
+                }
+            }
+        }
+                #if len(free_list) > 0
+
+                    #for $f in $free_list
+        AJ_Free((void*)$f);
+        $f = NULL;
+                    #end for
+                #end if
+    }
+                #set $component += 1
+
+            #end for
+        #end for
+    #end for
+    if (++s_turn >= numberOfSignals) {
+        s_turn = 0;
+    }
+
+    $GenTL.comment_end_runnable
+#else
+    /* TODO: If there are signals then this may be the place to send them.
+     * The bus object will be needed for interacting with the AllJoyn API.
+     */
+    AJCG_NO_UNUSED_WARNING(bus);
+    AJ_AlwaysPrintf(("ServiceAppDoWork()\n"));
+#end if
+}
+#if $command_line.runnable
+/*
+ * Return the index of an open slot for a session or s_maxSessions if none are available.
+ */
+static int GetOpenSessionIndex()
+{
+    size_t index = 0;
+
+    while (index < s_maxSessions && s_activeSessions[index] != 0) {
+        index++;
+    }
+
+    return index;
+}
+
+/*
+ * Return AJ_OK if there is room to add another session. Otherwise return AJ_ERR_RESOURCES.
+ */
+AJ_Status CanJoinSession()
+{
+    return GetOpenSessionIndex() == s_maxSessions ? AJ_ERR_RESOURCES : AJ_OK;
+}
+#end if
+
+/*
+ * Handle a session joined signal.
+ */
+AJ_Status SessionJoined(AJ_Message* msg, AJ_Message* reply)
+{
+    AJ_Status ajcgStatus = AJ_OK;
+#if $command_line.runnable
+    $GenTL.comment_start_runnable
+    size_t index = GetOpenSessionIndex();
+
+    if (index != s_maxSessions) {
+        s_activeSessions[index] = msg->sessionId;
+        AJ_AlwaysPrintf(("\nSession 0x%x joined. Path = '%s'.\n", msg->sessionId, msg->objPath));
+    } else {
+        ajcgStatus = AJ_ERR_RESOURCES;
+    }
+    $GenTL.comment_end_runnable
+#else
+
+    AJ_AlwaysPrintf(("\nSession 0x%x joined. Path = '%s'.\n", msg->sessionId, msg->objPath));
+#end if
+
+    return ajcgStatus;
+}
+
+/*
+ * Handler for AJ_SIGNAL_SESSION_LOST_WITH_REASON.
+ */
+AJ_Status SessionLost(AJ_Message* msg, AJ_Message* reply)
+{
+    AJ_Status ajcgStatus = AJ_OK;
+#if $command_line.runnable
+    $GenTL.comment_start_runnable
+    size_t index = 0;
+
+    do {
+        if (s_activeSessions[index] == msg->sessionId) {
+            s_activeSessions[index] = 0;
+            break;
+        }
+    } while (++index < s_maxSessions);
+
+    $GenTL.comment_end_runnable
+#end if
+
+    AJ_AlwaysPrintf(("\nSession 0x%x lost. Path = '%s'.\n", msg->sessionId, msg->objPath));
+
+    return ajcgStatus;
+}

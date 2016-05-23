@@ -1,0 +1,53 @@
+# Contributed by Qualcomm Connected Experiences, Inc.,
+# with authorization from the AllSeen Alliance, Inc.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# 
+# Pursuant to Section 1 of the License, the work of authorship constituting
+# a Work and any Contribution incorporated in the Work shall mean only that
+# Contributor's code submissions authored by that Contributor.  Any rights
+# granted under the License are conditioned upon acceptance of these
+# clarifications.
+import os
+
+Import('env')
+
+# Target specific SCons command line variables
+default_msvc_version = os.environ.get('AJ_MSVC_VERSION', '12.0')
+supported_msvc_versions = [ '8.0', '9.0', '10.0', '11.0', '11.0Exp', '12.0', '12.0Exp' ]
+vars = Variables()
+vars.Add(EnumVariable('MSVC_VERSION', 'MSVC compiler version - Windows', default_msvc_version, allowed_values = supported_msvc_versions))
+vars.Add(BoolVariable('FORCE32',      'Force building 32 bit on 64 bit architecture',           os.environ.get('AJ_FORCE32', False)))
+vars.Update(env)
+Help(vars.GenerateHelpText(env))
+
+# Platform libraries
+env.Append(LIBS = ['advapi32'])
+
+# Compiler flags
+env.Append(CFLAGS = [ '/MD', '/J', '/W3', '/nologo' ])
+env.Append(CPPDEFINES = [ '_CRT_SECURE_NO_WARNINGS',
+                          ('snprintf', '_snprintf')])
+if env['FORCE32']:
+    env['TARGET_ARCH'] = 'x86'
+
+# Debug/Release Variants
+if env['VARIANT'] == 'debug':
+    env.Append(CPPDEFINES = [ '_DEBUG',
+                              ('_ITERATOR_DEBUG_LEVEL', 2) ])
+    env.Append(CFLAGS = [ '/LD', '/Zi', '/Od' ])
+    env.Append(LINKFLAGS = [ '/debug' ])
+else:
+    env.Append(CPPDEFINES = [( '_ITERATOR_DEBUG_LEVEL', 0 )])
+    env.Append(CFLAGS = [ '/Gy', '/O1', '/Ob2' ])
+    env.Append(LINKFLAGS = [ '/opt:ref' ])

@@ -1,0 +1,55 @@
+# Copyright AllSeen Alliance. All rights reserved.
+#
+#    Contributed by Qualcomm Connected Experiences, Inc.,
+#    with authorization from the AllSeen Alliance, Inc.
+#    
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#    
+#        http://www.apache.org/licenses/LICENSE-2.0
+#    
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#    
+#    Pursuant to Section 1 of the License, the work of authorship constituting
+#    a Work and any Contribution incorporated in the Work shall mean only that
+#    Contributor's code submissions authored by that Contributor.  Any rights
+#    granted under the License are conditioned upon acceptance of these
+#    clarifications.
+# 
+
+Import('env')
+
+libenv = env.Clone()
+
+
+# Plugin library sources
+srcs = libenv.Glob('*.cc')
+if '' != libenv.subst('$GECKO_BASE'):
+    libenv.Append(CPPPATH = [libenv.Dir('.').srcnode(), libenv.Dir('npapi').srcnode(), libenv.subst('$GECKO_BASE/include')])
+    srcs.append(libenv.Glob('npapi/*.cc'))
+else:
+    libenv.Append(CPPPATH = [libenv.Dir('.').srcnode(), libenv.Dir('cordova').srcnode()])
+    srcs.append(libenv.Glob('cordova/*.cc'))
+    srcs.append(libenv.Glob('cordova/${OS_CONF}/*.cc'))
+srcs.append(libenv.Glob('os/${OS_CONF}/*.cc'))
+
+objs = libenv.SharedObject(srcs)
+if libenv['OS_CONF'] == 'windows':
+    objs.append(['os/${OS_CONF}/npalljoyn.def', libenv.RES('os/${OS_CONF}/npalljoyn.rc')])
+
+if libenv['LIBTYPE'] == 'both':
+    # Need to replace the shared alljoyn library with the static one for linking the plugin.
+    libs = libenv['LIBS']
+    libs[libs.index('alljoyn')] = libenv.File('$DISTDIR/cpp/lib/${LIBPREFIX}alljoyn${LIBSUFFIX}')
+    libenv.Replace(LIBS = libs)
+
+# Plugin library
+npalljoyn = libenv.SharedLibrary('npalljoyn', objs)
+shlibs = ['npalljoyn']
+
+Return(shlibs)

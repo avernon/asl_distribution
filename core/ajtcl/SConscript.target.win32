@@ -1,0 +1,91 @@
+# Contributed by Qualcomm Connected Experiences, Inc.,
+# with authorization from the AllSeen Alliance, Inc.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# 
+# Pursuant to Section 1 of the License, the work of authorship constituting
+# a Work and any Contribution incorporated in the Work shall mean only that
+# Contributor's code submissions authored by that Contributor.  Any rights
+# granted under the License are conditioned upon acceptance of these
+# clarifications.
+import os
+import platform
+
+Import('env')
+
+default_target_os = 'win7'
+allowed_target_oss = ('win7', 'win10')
+
+if platform.machine() == 'x86_64':
+    default_target_cpu = 'x86_64'
+else:
+    default_target_cpu = 'x86'
+allowed_target_cpus = ('x86', 'x86_64', 'arm')
+
+# Target specific SCons command line variables
+default_msvc_version = os.environ.get('AJ_MSVC_VERSION', '12.0')
+supported_msvc_versions = [ '8.0', '9.0', '10.0', '11.0', '11.0Exp', '12.0', '12.0Exp', '14.0', '14.0Exp' ]
+
+vars = Variables()
+vars.Add(EnumVariable('OS', 'Target OS', default_target_os, allowed_values = allowed_target_oss))
+vars.Add(EnumVariable('CPU', 'Target CPU', default_target_cpu, allowed_values = allowed_target_cpus))
+vars.Add(EnumVariable('MSVC_VERSION', 'MSVC compiler version - Windows', default_msvc_version, allowed_values = supported_msvc_versions))
+vars.Add(BoolVariable('FORCE32', 'Force building 32 bit on 64 bit architecture', os.environ.get('AJ_FORCE32', False)))
+vars.Add(BoolVariable('NO_AUTH', "Compile in authentication mechanism's to the code base", os.environ.get('AJ_NO_AUTH', False)))
+vars.Add(PathVariable('MOSQUITTO_SRC', 'Directory to the Mosquitto install devel folder on Windows',       os.environ.get('MOSQUITTO_SRC'), PathVariable.PathIsDir))
+vars.Update(env)
+Help(vars.GenerateHelpText(env))
+
+# Platform libraries
+env.Append(LIBS = ['advapi32'])
+
+# If we are building with Mosquitto then add the lib and header search path
+if env.has_key('MOSQUITTO_SRC') and env['MOSQUITTO_SRC']:
+   env.Append(LIBPATH = Dir([env['MOSQUITTO_SRC']]))
+   env.Append(CPPPATH = Dir([env['MOSQUITTO_SRC']]))
+   env.Append(LIBS = ['mosquitto'])
+
+# Set define to know that this is windows platform
+env.Append(CPPDEFINES = [ 'QCC_OS_GROUP_WINDOWS' ])
+
+# Compiler flags
+env.Append(CFLAGS = ['/J', '/W3', '/nologo'])
+env.Append(CPPDEFINES = ['_CRT_SECURE_NO_WARNINGS', 'AJ_MAIN'])
+if env['FORCE32']:
+    env['TARGET_ARCH'] = 'x86'
+if env['NO_AUTH']:
+    env.Append(CPPDEFINES = ['TEST_DISABLE_SECURITY'])
+
+# Debug/Release Variants
+if env['VARIANT'] == 'debug':
+    env.Append(CFLAGS = ['/Zi', '/Od', '/MDd'])
+    env.Append(CPPDEFINES = ['_DEBUG'])
+    env.Append(LINKFLAGS = ['/debug', '/NODEFAULTLIB:libcmt.lib'])
+else:
+   env.Append(CFLAGS = ['/Gy', '/O1', '/GF', '/MD'])
+   env.Append(LINKFLAGS = ['/opt:ref', '/NODEFAULTLIB:libcmt.lib'])
+
+env['connectivity_options'] = ['tcp', 'ardp', 'mqtt']
+
+# Support running on Win7 and newer Windows versions.
+env.Append(CPPDEFINES = [('_WIN32_WINNT', '_WIN32_WINNT_WIN7')])
+
+# This is needed in order to build with Scons and Visual Studio multiple targets
+# in parallel using the -j option. See alljoyn\build_core\conf\windows\SConscript.
+env['CCPDBFLAGS'] = '/Z7'
+env['PDB'] = '${TARGET.base}.pdb'
+env.Append(LINKFLAGS=['/PDB:${TARGET.base}.pdb'])
+
+# Large Memory Platform
+env.Append(CPPDEFINES = ['AJ_NVRAM_SIZE=64000'])
+env.Append(CPPDEFINES = ['AJ_NUM_REPLY_CONTEXTS=8'])

@@ -1,0 +1,52 @@
+# Contributed by Qualcomm Connected Experiences, Inc.,
+# with authorization from the AllSeen Alliance, Inc.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# 
+# Pursuant to Section 1 of the License, the work of authorship constituting
+# a Work and any Contribution incorporated in the Work shall mean only that
+# Contributor's code submissions authored by that Contributor.  Any rights
+# granted under the License are conditioned upon acceptance of these
+# clarifications.
+Import('src_env')
+
+# Enable common components for FRDM-K64F running MbedRTOS
+src_env['crypto'] = True
+src_env['external_sha2'] = True
+src_env['malloc'] = True
+src_env['freertos'] = False
+src_env['mbedrtos'] = True
+src_env['wsl'] = src_env['AJWSL']
+src_env['nvram'] = False
+
+# Target source
+targ_files = [Glob('*.c'),
+              Glob('*.cpp')]
+
+# Mbed, Mbed-rtos, SDFileSystem and FATFileSystem source
+mbed_files = [Glob(src_env['MBED_DIR'] + '/mbed-rtos/rtx/TARGET_M3/TOOLCHAIN_GCC/*.s'),
+              Glob(src_env['MBED_DIR'] + '/mbed-rtos/rtx/*.c'),
+              Glob(src_env['MBED_DIR'] + '/mbed-rtos/rtos/*.cpp'),
+              Glob(src_env['MBED_DIR'] + '/FATFileSystem/*.cpp'),
+              Glob(src_env['MBED_DIR'] + '/FATFileSystem/ChaN/*.cpp'),
+              Glob(src_env['MBED_DIR'] + '/SDFileSystem/*.cpp')]
+
+# Pre-compiled object files for the K64F
+src_env['system_objects'] = [src_env['MBED_DIR'] + '/mbed/TARGET_K64F/TOOLCHAIN_GCC_ARM/startup_MK64F12.o',
+                      src_env['MBED_DIR'] + '/mbed/TARGET_K64F/TOOLCHAIN_GCC_ARM/cmsis_nvic.o',
+                      src_env['MBED_DIR'] + '/mbed/TARGET_K64F/TOOLCHAIN_GCC_ARM/system_MK64F12.o',
+                      src_env['MBED_DIR'] + '/mbed/TARGET_K64F/TOOLCHAIN_GCC_ARM/mbed_overrides.o',
+                      src_env['MBED_DIR'] + '/mbed/TARGET_K64F/TOOLCHAIN_GCC_ARM/board.o',
+                      src_env['MBED_DIR'] + '/mbed/TARGET_K64F/TOOLCHAIN_GCC_ARM/retarget.o']
+
+src_env['srcs'].extend([targ_files, mbed_files])

@@ -1,0 +1,266 @@
+#!/bin/bash
+
+# Copyright AllSeen Alliance. All rights reserved.
+#
+# Contributed by Qualcomm Connected Experiences, Inc.,
+# with authorization from the AllSeen Alliance, Inc.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# 
+# Pursuant to Section 1 of the License, the work of authorship constituting
+# a Work and any Contribution incorporated in the Work shall mean only that
+# Contributor's code submissions authored by that Contributor.  Any rights
+# granted under the License are conditioned upon acceptance of these
+# clarifications.
+
+# Purpose:
+# wrapper for iosAndroidTest under jenkins
+
+# Return:
+# 0 - Success
+# 1 - Fail
+# 2 - IOS SDK download fail
+# 3 - Android SDK download fail
+# 7 - Workspace local path not exist
+# 8 - Test script path not exist
+
+# Function name: usage
+# Description: display command parameter
+# Parameter: none
+# Return: none
+function usage() {
+   echo 'Usage: iosJenkins -h -i [ios_sdk_url] -j [android_sdk_url] -w [workspace_path] -f -o [ios_zip] -p [ios_path] -m [android_zip] -n [android_path]'
+   echo ' -h help (optional)
+          -i ios sdk url
+          -j android sdk url
+          -w workspace path
+          -f use arm64 flag to compile ios 8.1 device
+          -o ios sdk zip
+          -p ios sdk path after unzip
+          -m android sdk zip
+          -n android sdk path after unzip'
+}
+
+# Function name: parseArgs
+# Description: Parse command arguments
+# Parameter: none
+# Return:
+#   2 - invalid command
+function parseArgs() {
+
+    echo "Parsing arguments..."
+
+    args=`getopt hi:j:w:fo:p:m:n: $*`
+
+    if [ $? != 0 ]; then
+        usage
+        exit 2
+    fi
+
+    set -- $args
+
+    # IOS SDK url, default url is for master
+    iosSdkUrl="https://build.allseenalliance.org/ci/view/Core%20master%20SDK/job/master-osx-sdk/lastSuccessfulBuild/artifact/sdks/alljoyn-0.0.1-osx_ios-sdk.zip"
+    iosSdkZip="alljoyn-0.0.1-osx_ios-sdk.zip"
+    iosPath="alljoyn-0.0.1-osx_ios-sdk"
+
+    
+    # Android SDK url default url is for master
+    androidSdkUrl="https://build.allseenalliance.org/ci/view/Core%20master%20SDK/job/master-android-sdk/lastSuccessfulBuild/artifact/sdks/alljoyn-0.0.1-android-sdk-rel.zip"
+    
+    androidRelSdkZip="alljoyn-0.0.1-android-sdk-rel.zip"
+    androidPath="alljoyn-0.0.1-rel"
+    
+    # Local workspace path
+    workspacePath=""
+    
+    # armv7 flag by default for 71 device
+    arm64Flag=0
+    
+    for i
+    do
+        case "$i" in
+             -h) shift;usage;exit 0;;
+             -i) shift;iosSdkUrl=$1;echo "ios sdk url $iosSdkUrl";shift;;
+             -o) shift;iosSdkZip=$1;echo "ios sdk zip $iosSdkZip";shift;;
+             -p) shift;iosPath=$1;echo "ios sdk path $iosPath after unzip";shift;;
+             -j) shift;androidSdkUrl=$1;echo "android sdk url $androidSdkUrl";shift;;
+             -m) shift;androidRelSdkZip=$1;echo "android release sdk zip $androidRelSdkZip";shift;;
+             -n) shift;androidPath=$1;echo "android sdk path $androidPath after unzip";shift;;
+             -w) shift;workspacePath=$1;echo "workspace path $workspacePath";shift;;
+             -f) shift;arm64Flag=1; echo "IOS 8.1 device";;
+        esac
+    done
+        
+    if [ -n "$workspacePath" -a -d "$workspacePath" ]; then
+		wsPath="$workspacePath"
+		lastChr=${workspacePath#${workspacePath%?}}
+		# Remove trailing /
+		if [ "$lastChr" == "/" ]; then
+			wsPath=`echo "${workspacePath%?}"`
+		fi
+	else
+		echo "Invalid workspace local path $workspacePath"
+		exit 7
+	fi
+    	
+    iosLocalRoot="${wsPath}/${iosPath}"
+    iosFullPath="${iosLocalRoot}"
+    
+    androidLocalRoot="${wsPath}/alljoyn-android"
+    androidRelPath="${androidLocalRoot}/core/${androidPath}"
+    
+	# iosAndroidTest path
+	testScriptPath="${wsPath}/test-tools/testbot/ios/sbin"
+	testScriptName="${testScriptPath}/iosAndroidTest"
+	jsScriptPath="${wsPath}/test-tools/testbot/ios/js"
+	
+	if [ -d "$testScriptPath" -a -x "$testScriptName" ]; then
+        echo "Good test script $testScriptName"
+	else
+		echo "Invalid test script $testScriptName"
+		exit 8
+	fi
+	
+    armFlag=""
+    
+    if [ "$arm64Flag" -eq 1 ]; then
+        echo "Build IOS8.1 64bit device"
+        armFlag="-l"
+    fi
+}
+
+# Function name: getWgetPath
+# Description: 
+#   Get wget path
+# Parameter: none
+# Return: 
+#   wgetPath is set to complete path
+function getWgetPath() {
+    echo "Get wget path ..."
+}
+
+# Function name: getIosSdk
+# Description: 
+#   Get IOS sdk using wget
+# Parameter: none
+# Return: 
+#   iosSdkReady is set to 0 if IOS SDK downloaded successfully
+#   iosSdkReady is set to 1 if fail
+function getIosSdk() {
+	echo "Get IOS SDK from $iosSdkUrl ..."
+	
+	iosSdkReady=1
+	
+(cd ${wsPath}
+rm -rf ${iosLocalRoot}
+/usr/local/bin/wget ${iosSdkUrl} --no-check-certificate
+unzip ${iosSdkZip}
+)
+    local downloadStatus=$?
+    local manifest="${iosLocalRoot}/manifest.txt"
+    
+    # Check if downloaded is successfully unzipped and manifest file exist
+    if [ "${downloadStatus}" -eq 0 -a -e "${manifest}" ]; then
+        echo "IOS SDK download succeed from $iosSdkUrl"
+        iosSdkReady=0
+    else
+        echo "IOS SDK download failed from ${iosSdkUrl} !"
+    fi  
+}
+
+# Function name: getAndroidSdk
+# Description: 
+#   Get Android sdk using wget
+# Parameter: none
+# Return: 
+#   androidSdkReady is set to 0 if Android SDK downloaded successfully
+#   androidSdkReady is set to 1 if fail
+function getAndroidSdk() {
+	echo "Get Android SDK from $androidSdkUrl ..."
+	
+	androidSdkReady=1
+	
+(cd ${wsPath}
+rm -rf ${androidLocalRoot}
+/usr/local/bin/wget ${androidSdkUrl} --no-check-certificate
+unzip ${androidRelSdkZip}
+)
+    local downloadStatus=$?   
+    local manifest="${androidRelPath}/manifest.txt"
+    
+    # Check if downloaded is successfully unzipped and manifest file exist
+    if [ "${downloadStatus}" -eq 0 -a -e "${manifest}" ]; then
+        echo "Android SDK download succeed from $androidSdkUrl"
+        androidSdkReady=0
+    else
+        echo "Android SDK download failed from ${androidSdkUrl} !"
+    fi  
+}
+
+# Function name: runTest
+# Description: 
+#   run IOS android interaction test
+# Parameter: none
+# Return: 
+#   testStatus is 0 if test pass; 1 otherwise
+function runTest() {
+	echo "Run test ..."
+
+    testStatus=1
+
+(cd ${wsPath}
+${testScriptName} -v -i ${iosFullPath} -a ${androidRelPath} ${armFlag} -j ${jsScriptPath}
+)
+
+    testStatus=$?
+    
+    if [ "${testStatus}" -eq 0 ]; then
+        echo "All test passed"
+    else
+        echo "Some test failed!"
+    fi
+}
+
+#parse input argument
+parseArgs $*
+
+# cleanup old files
+rm -rf ${wsPath}/*.html ${wsPath}/*.log ${wsPath}/*.txt ${wsPath}/*.zip ${wsPath}/*.trace ${wsPath}/alljoyn* 2>/dev/null 1>&2
+
+getIosSdk
+
+# If IOS SDK download failed, exit
+if [ "${iosSdkReady}" -ne 0 ]; then
+    echo "IOS release SDK download failed!"
+    exit 2
+fi
+
+#getAndroidSdk
+getAndroidSdk
+
+# If Android SDK download failed, exit
+if [ "${androidSdkReady}" -ne 0 ]; then
+    echo "Android release SDK download failed!"
+    exit 3
+fi
+
+# run test
+runTest
+
+if [ "$testStatus" -ne 0 ]; then 
+    # At least one test case fail 
+    exit 1
+else
+    exit 0
+fi

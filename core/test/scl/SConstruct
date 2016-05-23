@@ -1,0 +1,91 @@
+# Copyright AllSeen Alliance. All rights reserved.
+#
+#    Contributed by Qualcomm Connected Experiences, Inc.,
+#    with authorization from the AllSeen Alliance, Inc.
+#    
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#    
+#        http://www.apache.org/licenses/LICENSE-2.0
+#    
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#    
+#    Pursuant to Section 1 of the License, the work of authorship constituting
+#    a Work and any Contribution incorporated in the Work shall mean only that
+#    Contributor's code submissions authored by that Contributor.  Any rights
+#    granted under the License are conditioned upon acceptance of these
+#    clarifications.
+
+import os
+
+# Generate an environment based on alljoyn/alljoyn_core/build_core/SConscript
+if os.environ.has_key('AJ_CORE_SRC_DIR'):
+    env = SConscript(os.environ['AJ_CORE_SRC_DIR'] + '/build_core/SConscript')
+    env['AJ_CORE_SRC_DIR'] = os.environ['AJ_CORE_SRC_DIR']
+else:
+    default_alljoyn_src_location = '../../alljoyn'
+    print 'Environment variable AJ_CORE_SRC_DIR is not set. Assuming it to be: ' + default_alljoyn_src_location 
+    env = SConscript(default_alljoyn_src_location + '/build_core/SConscript')
+    env['AJ_CORE_SRC_DIR'] = default_alljoyn_src_location
+
+vars = Variables()
+vars.Add(PathVariable('AJ_CORE_DIST_DIR', 'Location of the core sdk directory',
+                      env['AJ_CORE_SRC_DIR'] + '/build/' +
+                      env['OS'] + '/' + env['CPU'] + '/' + env['VARIANT'] + '/dist' , PathVariable.PathIsDir))
+vars.Add(PathVariable('AJTC_CORE_DIR', 'Location of the built AJ Thin Core directory',
+                      '../../ajtcl', PathVariable.PathIsDir))
+vars.Update(env)
+Help(vars.GenerateHelpText(env))
+
+# TODO: Figure out how to get these C++ test programs to build on OSX
+#       without having to use xcodebuild.
+# Until then, bail out.
+if env['OS'] == 'darwin':
+    print 'OSX is not a currently supported platform for these test programs.'
+    Exit(1)
+
+if env.has_key('AJ_CORE_DIST_DIR'):
+    # Normalize AJ_DIST_CORE_DIR
+    env['AJ_CORE_DIST_DIR'] = env.Dir('$AJ_CORE_DIST_DIR')
+    # Update include and library paths
+    env.Append(CPPPATH = [ env.Dir('$AJ_CORE_DIST_DIR/cpp/inc'),
+                           env.Dir('$AJ_CORE_DIST_DIR/about/inc') ])
+    env.Append(LIBPATH = [ env.Dir('$AJ_CORE_DIST_DIR/cpp/lib'),
+                           env.Dir('$AJ_CORE_DIST_DIR/about/lib') ])
+    # Setup libraries needed to link
+    env.Append(LIBS = ['alljoyn'])
+
+if env.has_key('AJTC_CORE_DIR'):
+    # Normalize AJTC_CORE_DIR
+    env['AJTC_CORE_DIR'] = env.Dir('$AJTC_CORE_DIR')
+    # Update target-independent header files
+    env.Append(CPPPATH = [env.Dir('$AJTC_CORE_DIR/dist/include')])
+    # Update include and library paths
+    env.Append(LIBPATH = [env.Dir('$AJTC_CORE_DIR/dist/lib')])
+
+    # Setup libraries needed to link
+    env.Append(LIBS = ['ajtcl'])
+
+# Android needs to explicitly link certain libraries
+if env['OS'] == 'android':
+    env.Append(LIBS = ['stdc++', 'm', 'gnustl_static'])
+    # AllJoyn build on Android makes a distinction between builtin and openssl
+    if env['CRYPTO'] == 'openssl':
+        env.Append(LIBS = ['crypto'])
+    # Need Android native logging liblog.so for __android_log_vprint
+    env.Append(LIBS = ['log'])
+
+# Windows needs to explicitly link certain libraries
+if env['OS'] == 'win7':
+    env.Append(LIBS = ['ws2_32', 'iphlpapi', 'Secur32', 'crypt32', 'Bcrypt', 'Ncrypt'])
+
+if env['BR'] == 'on':
+    env.Prepend(LIBS = ['ajrouter'])
+
+# Build the code
+env.SConscript('SConscript')

@@ -1,0 +1,93 @@
+# Copyright AllSeen Alliance. All rights reserved.
+#
+#    Contributed by Qualcomm Connected Experiences, Inc.,
+#    with authorization from the AllSeen Alliance, Inc.
+#    
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#    
+#        http://www.apache.org/licenses/LICENSE-2.0
+#    
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#    
+#    Pursuant to Section 1 of the License, the work of authorship constituting
+#    a Work and any Contribution incorporated in the Work shall mean only that
+#    Contributor's code submissions authored by that Contributor.  Any rights
+#    granted under the License are conditioned upon acceptance of these
+#    clarifications.
+# 
+
+from os.path import basename
+
+Import('env')
+
+router_env = env.Clone()
+
+vars = Variables()
+vars.Add(EnumVariable('POLICYDB', 'Enable policy support', 'off', allowed_values=('on', 'off')))
+vars.Add('TEST_CONFIG', 'The bundled router will attempt to use the specified file as its config file (if present at runtime).')
+vars.Update(router_env)
+Help(vars.GenerateHelpText(router_env))
+
+
+if router_env['OS'] == "darwin":
+    # Darwin has its own version of the daemon transport
+	srcs = [ f for f in router_env.Glob('*.cc') + router_env.Glob('*.c') + [router_env['OS'] + '/DaemonTransport.cc'] ]
+else:
+	srcs = [ f for f in router_env.Glob('*.cc') + router_env.Glob('*.c') + [router_env['OS_GROUP'] + '/DaemonTransport.cc']]
+
+srcs += [router_env['OS_GROUP'] + '/Socket.cc']
+
+if router_env['OS'] != "android":
+    srcs += [router_env['OS_GROUP'] + '/PermissionMgr' + router_env['OS_GROUP'].capitalize() + '.cc']
+
+router_env.Append(CPPPATH = [ router_env.Dir('..').srcnode(),
+                              router_env.Dir('.').srcnode(),
+                              router_env.Dir('$OS_GROUP').srcnode() ])
+
+if 'TEST_CONFIG' in router_env and router_env['BR'] == "on":
+    router_env.Append(CPPDEFINES = {'TEST_CONFIG' : '\\\"${TEST_CONFIG}\\\"'})
+
+if router_env['POLICYDB'] == 'on':
+    router_env.Append(CPPDEFINES = [ 'ENABLE_POLICYDB' ])
+    router_env.Append(CPPPATH = [ router_env.Dir('policydb').srcnode() ])
+    srcs += [ 'policydb/PolicyDB.cc' ]
+
+router_objs = router_env.Object(srcs)
+
+router_objs.extend(router_env.SConscript('ns/SConscript', exports = ['router_env']))
+router_objs.extend(router_env.SConscript('nio/SConscript', exports = ['router_env']))
+
+if router_env['OS'] == "android":
+    router_objs.extend(router_env.SConscript('android/SConscript', exports = ['router_env']))
+
+# Standalone daemon object file
+srobj = router_env.SConscript('standalone/SConscript', exports = ['router_env'])
+
+# Bundled daemon object file
+brobj = router_env.SConscript('bundled/SConscript', exports = ['router_env'])
+
+progs = router_env.SConscript('${OS_GROUP}/SConscript', exports=['router_env', 'router_objs', 'srobj'])
+
+# Bundled daemon library
+lib = router_env.StaticLibrary('ajrouter', brobj + router_objs);
+
+# AllJoyn Daemon test programs
+if router_env['OS'] == 'darwin':
+    if router_env['CPU'] in ['arm', 'armv7', 'armv7s', 'arm64',]:
+        print 'Not building unit tests for iOS...'    
+        tests = []
+    else:
+        print 'Building unit tests for darwin...'
+        tests = router_env.SConscript('test/SConscript', exports = ['router_env', 'router_objs', 'srobj'])
+else:
+    tests = router_env.SConscript('test/SConscript', exports = ['router_env', 'router_objs', 'srobj'])
+    
+# Return daemon and related tests
+ret = progs + tests, lib, srobj, router_objs
+Return('ret')

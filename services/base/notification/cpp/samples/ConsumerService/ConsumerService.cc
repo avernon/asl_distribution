@@ -1,0 +1,143 @@
+/******************************************************************************
+ * Copyright AllSeen Alliance. All rights reserved.
+ *
+ *    Contributed by Qualcomm Connected Experiences, Inc.,
+ *    with authorization from the AllSeen Alliance, Inc.
+ *    
+ *    Licensed under the Apache License, Version 2.0 (the "License");
+ *    you may not use this file except in compliance with the License.
+ *    You may obtain a copy of the License at
+ *    
+ *        http://www.apache.org/licenses/LICENSE-2.0
+ *    
+ *    Unless required by applicable law or agreed to in writing, software
+ *    distributed under the License is distributed on an "AS IS" BASIS,
+ *    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ *    See the License for the specific language governing permissions and
+ *    limitations under the License.
+ *    
+ *    Pursuant to Section 1 of the License, the work of authorship constituting
+ *    a Work and any Contribution incorporated in the Work shall mean only that
+ *    Contributor's code submissions authored by that Contributor.  Any rights
+ *    granted under the License are conditioned upon acceptance of these
+ *    clarifications.
+ ******************************************************************************/
+
+#include <iostream>
+#include <sstream>
+#include <signal.h>
+
+#ifdef _WIN32
+/* Disable deprecation warnings */
+#pragma warning(disable: 4996)
+#endif
+
+#include <alljoyn/notification/NotificationService.h>
+#include "../common/NotificationReceiverTestImpl.h"
+#include "CommonSampleUtil.h"
+#include <alljoyn/services_common/LogModulesNames.h>
+#include <AJInitializer.h>
+
+using namespace ajn;
+using namespace services;
+
+NotificationService* conService = 0;
+NotificationReceiverTestImpl* Receiver = 0;
+ajn::BusAttachment* busAttachment = 0;
+static volatile sig_atomic_t s_interrupt = false;
+
+void cleanup()
+{
+    std::cout << "cleanup() - start" << std::endl;
+    if (conService) {
+        std::cout << "cleanup() - conService" << std::endl;
+        conService->shutdown();
+        conService = NULL;
+    }
+    if (Receiver) {
+        std::cout << "cleanup() - Receiver" << std::endl;
+        delete Receiver;
+        Receiver = NULL;
+    }
+    if (busAttachment) {
+        std::cout << "cleanup() - busAttachment" << std::endl;
+        delete busAttachment;
+        busAttachment = NULL;
+    }
+    std::cout << "cleanup() - end" << std::endl;
+}
+
+void CDECL_CALL signal_callback_handler(int32_t signum)
+{
+    QCC_UNUSED(signum);
+    std::cout << "got signal_callback_handler" << std::endl;
+    s_interrupt = true;
+}
+
+void WaitForSigInt() {
+    while (s_interrupt == false) {
+#ifdef _WIN32
+        Sleep(100);
+#else
+        usleep(100 * 1000);
+#endif
+    }
+    std::cout << "Getting out from WaitForSigInt()" << std::endl;
+}
+
+int main()
+{
+    // Initialize AllJoyn
+    AJInitializer ajInit;
+    if (ajInit.Initialize() != ER_OK) {
+        return 1;
+    }
+
+    std::string listOfApps;
+
+    // Allow CTRL+C to end application
+    signal(SIGINT, signal_callback_handler);
+
+    std::cout << "Begin Consumer Application. (Press CTRL+C to end application)" << std::endl;
+    std::cout << "Enter in a list of app names (separated by ';') you would like to receive notifications from." << std::endl;
+    std::cout << "Empty list means all app names." << std::endl;
+    getline(std::cin, listOfApps);
+
+    // Initialize Service object and send it Notification Receiver object
+    conService = NotificationService::getInstance();
+
+    // change loglevel to debug:
+    QCC_SetLogLevels("ALLJOYN_ABOUT_CLIENT=7");
+    QCC_SetLogLevels("ALLJOYN_ABOUT_ICON_CLIENT=7");
+    QCC_SetLogLevels("ALLJOYN_ABOUT_ANNOUNCE_HANDLER=7");
+    QCC_SetLogLevels("ALLJOYN_ABOUT_ANNOUNCEMENT_REGISTRAR=7");
+
+    QCC_SetDebugLevel(logModules::NOTIFICATION_MODULE_LOG_NAME, logModules::ALL_LOG_LEVELS);
+
+    Receiver = new NotificationReceiverTestImpl(false);
+
+    // Set the list of applications this receiver should receive notifications from
+    Receiver->setApplications(listOfApps.c_str());
+
+    busAttachment = CommonSampleUtil::prepareBusAttachment();
+    if (busAttachment == NULL) {
+        std::cout << "Could not initialize BusAttachment." << std::endl;
+        cleanup();
+        return 1;
+    }
+    QStatus status;
+
+    status = conService->initReceive(busAttachment, Receiver);
+    if (status != ER_OK) {
+        std::cout << "Could not initialize receiver." << std::endl;
+        cleanup();
+        return 1;
+    }
+
+    std::cout << "Waiting for notifications." << std::endl;
+
+    WaitForSigInt();
+
+    cleanup();
+    return 0;
+}

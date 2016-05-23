@@ -1,0 +1,82 @@
+###############################################################################
+## Copyright (c) 2014 AllSeen Alliance. All rights reserved.
+##
+## Contributed by Qualcomm Connected Experiences, Inc.,
+## with authorization from the AllSeen Alliance, Inc.
+## 
+## Licensed under the Apache License, Version 2.0 (the "License");
+## you may not use this file except in compliance with the License.
+## You may obtain a copy of the License at
+## 
+##     http://www.apache.org/licenses/LICENSE-2.0
+## 
+## Unless required by applicable law or agreed to in writing, software
+## distributed under the License is distributed on an "AS IS" BASIS,
+## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+## See the License for the specific language governing permissions and
+## limitations under the License.
+## 
+## Pursuant to Section 1 of the License, the work of authorship constituting
+## a Work and any Contribution incorporated in the Work shall mean only that
+## Contributor's code submissions authored by that Contributor.  Any rights
+## granted under the License are conditioned upon acceptance of these
+## clarifications.
+###############################################################################
+This set of AllJoyn Thin Library files was produced from the XML source file
+"$command_line.xml_input_file".
+
+The files "CommonClientService.h" and "CommonClientService.c" are used by both
+the client and service side. These contain information such as the service port,
+the interface descriptions, and the instances of those interfaces.
+
+The "SConstruct" file can be used to build the executables on the
+development platforms supported by the AllJoyn Thin Core Library. To
+do so, first run 'scons' to build the Thin Core Library. This creates
+a 'dist' subdirectory with the AllJoyn headers and libraries. Within
+that 'dist' subdirectory, create a new directory and place the files
+created by the code generator there. You should see these directories
+all listed within 'dist':
+
+ * inc/
+ * lib/
+ * Your codegen subdirectory
+ * ajtcl application subdirectories (for example, bin/ and test/)
+
+Run 'scons' in the directory containing your code generator output to
+build your generated application.
+
+All other files are specific to either the client or service side. Such files
+have either "Client" or "Service" as the first part of their name.
+
+Hence in this directory you will find the following additional files:
+
+#if not $command_line.client_only
+    Service.h       [Includes other .h files and defines or declares stuff common to the service.]
+    ServiceMain.c   [Initialized AllJoyn and dispatches messages.]
+    ServiceDoWork.c [Handles Session Joined/Lost messages and does work on the main thread.]
+    #for $key in sorted($service.interfaces):
+        #set $iname = $service.interfaces[$key].interface_full_name
+
+    [Files for the implementing the interface "$iname" on the service side.]
+    Service${iname}.h
+    Service${iname}.c
+    #end for
+
+#end if
+    Client.h        [Includes other .h files and defines or declares stuff common to the client.]
+    ClientMain.c    [Initialized AllJoyn and dispatches messages.]
+#if $command_line.runnable
+    ClientDoWork.c  [Handles Session Lost message and does work on the main thread.]
+#else
+    ClientDoWork.c  [Handles Session Lost message and does work. Use the -R flag to see examples.]
+#end if
+    #for $key in sorted($service.interfaces):
+        #set $iname = $service.interfaces[$key].interface_full_name
+
+    [Files for the implementing the interface "$iname" on the client side.]
+    Client${iname}.h
+    Client${iname}.c
+    #end for
+
+Search the files for "TODO:" to find instances where generated code should be
+replaced or enhanced with code specific to your application.

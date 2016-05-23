@@ -1,0 +1,206 @@
+###############################################################################
+## Copyright (c) 2013, 2014 AllSeen Alliance. All rights reserved.
+##
+## Contributed by Qualcomm Connected Experiences, Inc.,
+## with authorization from the AllSeen Alliance, Inc.
+## 
+## Licensed under the Apache License, Version 2.0 (the "License");
+## you may not use this file except in compliance with the License.
+## You may obtain a copy of the License at
+## 
+##     http://www.apache.org/licenses/LICENSE-2.0
+## 
+## Unless required by applicable law or agreed to in writing, software
+## distributed under the License is distributed on an "AS IS" BASIS,
+## WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+## See the License for the specific language governing permissions and
+## limitations under the License.
+## 
+## Pursuant to Section 1 of the License, the work of authorship constituting
+## a Work and any Contribution incorporated in the Work shall mean only that
+## Contributor's code submissions authored by that Contributor.  Any rights
+## granted under the License are conditioned upon acceptance of these
+## clarifications.
+###############################################################################
+#import GenTL
+#import CommonCheetah as cc
+/* Source: "$command_line.xml_input_file" */
+
+/**
+ * Per-module definition of the current module for debug logging. Must be defined
+ * prior to first inclusion of aj_debug.h
+ */
+\#define AJ_MODULE SERVICE$interface.get_full_coded_name()
+
+\#include "Service.h"
+
+/**
+ * Turn on per-module debug printing by setting this variable to non-zero value
+ * (usually in debugger).
+ */
+uint8_t dbgSERVICE$interface.get_full_coded_name() = 1;
+
+/* Interface: "$interface.interface_full_name" */
+
+#for $o in $interface.parents
+    #set $iface_index = $o.get_interface_index($interface)
+    #set $comp = $GenTL.get_interface_components($interface, $o, $iface_index, False)
+    #for $c in $comp
+$cc.CommonCheetah.function_header($o, $c, False)#slurp
+$function_definition($o, $c)
+    #end for
+#end for
+######################
+## Define a signal.
+###################### 
+#def signal_definition($o, $c)
+    #if $c.output_arg_info is not None and len($c.output_arg_info.args) > 0
+AJ_Status ${c.name}(AJ_BusAttachment* bus, AJ_SessionId sessionId, $c.output_arg_info.arg_declaration)
+    #else
+AJ_Status ${c.name}(AJ_BusAttachment* bus, AJ_SessionId sessionId)
+    #end if
+{
+    AJ_Message ajcgMsg;
+    AJ_Status ajcgStatus = AJ_OK;
+    #set $has_outputs = len($c.output_arg_info.args) > 0
+$cc.CommonCheetah.define_arrays_and_structures(False, $c, False)
+    ajcgStatus = AJ_MarshalSignal(bus, &ajcgMsg, $c.define, NULL, sessionId, AJ_NO_FLAGS, 0);
+
+$cc.CommonCheetah.handle_error($command_line.runnable, "AJ_MarshalSignal", 4)
+    #if $has_outputs
+$cc.CommonCheetah.marshal_arguments($command_line.runnable, $c.output_arg_info, "&ajcgMsg", 4)
+    #end if
+    ajcgStatus = AJ_DeliverMsg(&ajcgMsg);
+
+$cc.CommonCheetah.handle_error($command_line.runnable, "AJ_DeliverMsg", 4)
+    return ajcgStatus;
+}
+#end def
+######################
+## Define a property.
+###################### 
+#def property_definition($c)
+AJ_Status ${c.name}(AJ_Message* ajcgMsg, uint32_t getOrSet, void* context)
+{
+    AJ_Status ajcgStatus = AJ_OK;
+$cc.CommonCheetah.define_arrays_and_structures($command_line.runnable, $c)
+    #if $c.input_arg_info.args
+    if (getOrSet == AJ_PROP_SET) {
+$cc.CommonCheetah.define_arguments($c.input_arg_info.args, 8, None)#slurp
+$cc.CommonCheetah.unmarshal_arguments($c.comp_type, $command_line.runnable, $c.input_arg_info, 8, False)
+        #if $command_line.runnable
+        $GenTL.comment_start_runnable
+$cc.CommonCheetah.print_args($c.input_arg_info.args, 8)#slurp
+        $GenTL.comment_end_runnable
+        #else
+        /* TODO: Do something with 'value'. */
+        #end if
+    }
+
+    #end if
+    #if $c.output_arg_info.args
+    if (getOrSet == AJ_PROP_GET) {
+        #set $free_list = []
+        #if $command_line.runnable
+$cc.CommonCheetah.define_arguments($c.output_arg_info.args, 8, $free_list)
+        $GenTL.comment_start_runnable
+$cc.CommonCheetah.define_static_args($c.output_arg_info.args, 8)
+$cc.CommonCheetah.initialize_args($c.output_arg_info.args, $c.name, 8)
+$cc.CommonCheetah.marshal_arguments(True, $c.output_arg_info, "ajcgMsg", 8)
+        $GenTL.comment_end_runnable
+        #else
+        /* TODO: Replace 'value' with the actual property value of interest. */
+$cc.CommonCheetah.define_arguments($c.output_arg_info.args, 8, $free_list)
+$cc.CommonCheetah.marshal_arguments(False, $c.output_arg_info, "ajcgMsg", 8)#slurp
+        #end if
+        #if len(free_list) > 0
+
+            #for $f in $free_list
+        AJ_Free((void*)$f);
+        $f = NULL;
+            #end for
+        #end if
+    }
+
+    #end if
+    return ajcgStatus;
+}
+#end def
+######################
+## Define a method.
+###################### 
+#def method_definition($o, $c)
+AJ_Status ${c.name}(AJ_Message* ajcgMsg, AJ_Message* ajcgReply)
+{
+    #set $free_list = []
+    #set $has_outputs = len($c.output_arg_info.args) > 0
+    #set $has_inputs = len($c.input_arg_info.args) > 0
+    #if $has_inputs
+    /* Input arguments to this method. */
+$cc.CommonCheetah.define_arguments($c.input_arg_info.args, 4, None)#slurp
+    /* End of input arguments to this method. */
+
+    #end if
+    #if $command_line.runnable and $has_outputs
+    $GenTL.comment_start_runnable
+$cc.CommonCheetah.define_static_args($c.output_arg_info.args, 4)#slurp
+    $GenTL.comment_end_runnable
+
+    #end if
+    #if $has_outputs
+    /* Output arguments. */
+$cc.CommonCheetah.define_arguments($c.output_arg_info.args, 4, $free_list)#slurp
+    /* End of output arguments. */
+
+    #end if
+$cc.CommonCheetah.define_arrays_and_structures($command_line.runnable, $c)#slurp
+    AJ_Status ajcgStatus = AJ_OK;
+
+    #if $has_inputs
+$cc.CommonCheetah.unmarshal_arguments($c.comp_type, $command_line.runnable, $c.input_arg_info, 4, False)#slurp
+    #end if
+    #if $command_line.runnable
+    $GenTL.comment_start_runnable
+
+        #set $complete_name = $GenTL.get_complete_name($o, $interface, $c)
+    AJ_AlwaysPrintf(("'$complete_name' has been successfully called.\n"));
+
+        #if $has_inputs
+$cc.CommonCheetah.print_args($c.input_arg_info.args, 4)
+        #end if
+        #if $has_outputs
+$cc.CommonCheetah.initialize_args($c.output_arg_info.args, $complete_name, 4)
+        #end if
+    $GenTL.comment_end_runnable
+    #else
+    /* TODO: Implement method. */
+    #end if
+
+$cc.CommonCheetah.free_and_null_arrays($c.input_arg_info)#slurp
+    #if $has_outputs
+$cc.CommonCheetah.marshal_arguments($command_line.runnable, $c.output_arg_info, "ajcgReply", 4)#slurp
+    #end if
+    #if len(free_list) > 0
+
+        #for $f in $free_list
+    AJ_Free((void*)$f);
+    $f = NULL;
+        #end for
+
+    #end if
+    return ajcgStatus;
+}
+#end def
+######################
+## Define the function used for a property, method, or signal.
+###################### 
+#def function_definition($o, $c)
+    #if $c.comp_type == "prop"
+$property_definition($c)#slurp
+    #elif $c.comp_type == "meth"
+$method_definition($o, $c)#slurp
+    #else
+        #assert($c.comp_type) == "sig"
+$signal_definition($o, $c)#slurp
+    #end if
+#end def

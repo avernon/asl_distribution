@@ -1,0 +1,89 @@
+# Contributed by Qualcomm Connected Experiences, Inc.,
+# with authorization from the AllSeen Alliance, Inc.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# 
+# Pursuant to Section 1 of the License, the work of authorship constituting
+# a Work and any Contribution incorporated in the Work shall mean only that
+# Contributor's code submissions authored by that Contributor.  Any rights
+# granted under the License are conditioned upon acceptance of these
+# clarifications.
+import os
+
+Import('env')
+
+src_env = env.Clone()
+
+src_env['srcs'] = []
+
+# Default common optional components to off (enabled according target platform)
+src_env['crypto'] = False
+src_env['external_sha2'] = False
+src_env['malloc'] = False
+src_env['freertos'] = False
+src_env['mbedrtos'] = False
+src_env['wsl'] = False
+src_env['system_objects'] = False
+src_env['nvram'] = False
+
+Export ('src_env')
+
+# Get the core sources
+src_env['srcs'] += Glob('*.c')
+
+# Get the target sources
+src_env.SConscript('target/$TARG/SConscript')
+
+# Get sources for any optional components
+if src_env['nvram']:
+    src_env['srcs'] += Glob('nvram/*.c')
+if src_env['crypto']:
+    src_env['srcs'] += Glob('crypto/*.c')
+if src_env['external_sha2']:
+    src_env['srcs'] += Glob('external/sha2/*.c')
+    src_env.Append(CPPPATH = [ 'external/sha2' ])
+if src_env['malloc']:
+    src_env.Append(CPPPATH = 'malloc')
+    src_env['srcs'] += Glob('malloc/*.c')
+if src_env['freertos']:
+    src_env.Append(CPPPATH = Dir(['freertos']))
+    src_env['srcs'] += Glob('freertos/*.c')
+if src_env['mbedrtos']:
+    src_env.Append(CPPPATH = Dir(['mbedrtos']))
+    src_env['srcs'] += Glob('mbedrtos/*.cpp')
+if src_env['wsl']:
+    src_env.Install('#../include/ajtcl', Glob('wsl/*.h'))
+    src_env.Append(CPPPATH = Dir(['target/$TARG']))
+    src_env.Append(CPPPATH = Dir(['bsp']))
+    src_env['srcs'] += Glob('wsl/*.c')
+if 'MQTT' in src_env['connectivity']:
+    src_env['srcs'] += Glob('mqtt/*.c')
+else:
+    src_env['srcs'] += Glob('rn_discovery/*.c')
+
+src_env.Append(CPPPATH = Dir(['.']))
+
+# Compile sources and create libraries
+objs = src_env.StaticObject(src_env['srcs'])
+
+# Some targets have pre-compiled object files to link in
+if src_env['system_objects']:
+    objs += src_env['system_objects']
+
+lib = src_env.Library("ajtcl", objs)
+src_env.Install('#dist/lib', lib)
+
+if src_env['build_shared']:
+    objs = src_env.SharedObject(src_env['srcs'])
+    lib = src_env.SharedLibrary("ajtcl", objs)
+    src_env.Install('#dist/lib', lib)

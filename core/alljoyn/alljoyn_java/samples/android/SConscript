@@ -1,0 +1,93 @@
+# Copyright AllSeen Alliance. All rights reserved.
+#
+#    Contributed by Qualcomm Connected Experiences, Inc.,
+#    with authorization from the AllSeen Alliance, Inc.
+#    
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#    
+#        http://www.apache.org/licenses/LICENSE-2.0
+#    
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#    
+#    Pursuant to Section 1 of the License, the work of authorship constituting
+#    a Work and any Contribution incorporated in the Work shall mean only that
+#    Contributor's code submissions authored by that Contributor.  Any rights
+#    granted under the License are conditioned upon acceptance of these
+#    clarifications.
+# 
+
+Import('env')
+
+# Set the ABI based on the CPU
+if(env['CPU'] == 'arm'):
+    android_eabi = 'armeabi'
+else:
+    android_eabi = 'x86'
+
+# The return value is the collection of files installed in the build destination.
+returnValue = []
+
+# Application samples
+for sample in ['simple/client', 
+               'simple/service', 
+               'chat', 
+               'raw/client', 
+               'raw/service', 
+               'secure/logonclient', 
+               'secure/srpclient', 
+               'secure/service', 
+               'secure/ECDHEclient', 
+               'properties/PropertiesClient',
+               'properties/PropertiesService',
+               'contacts/ContactsClient',
+               'contacts/ContactsService',
+               'sessionless/chat',
+               'sessionless/client',
+               'sessionless/service']:
+    returnValue += env.Install('$JAVA_DISTDIR/samples/%s' % sample, 
+                ['%s/AndroidManifest.xml' % sample,
+                 '%s/.classpath' % sample,
+                 '%s/project.properties' % sample,
+                 '%s/.project' % sample,
+                 '%s/res' % sample,
+                 '%s/src' % sample])
+    returnValue += env.Install('$JAVA_DISTDIR/samples/%s/libs' % sample, '$JARDIR/alljoyn.jar')
+    returnValue += env.Install('%s/libs' % sample, '$JARDIR/alljoyn.jar')
+    returnValue += env.Install('$JAVA_DISTDIR/samples/%s/libs/%s' % (sample, android_eabi), '$JAVA_DISTDIR/lib/liballjoyn_java.so')
+    returnValue += env.Install('%s/libs/%s' % (sample, android_eabi), '$JAVA_DISTDIR/lib/liballjoyn_java.so')
+
+returnValue += env.Install('$JAVA_DISTDIR/samples', 'README.txt')
+
+# install the alljoyn_java.jar and liballjoyn_java.so into the shared 
+# keystore samples at this time the shared keystore samples are not being placed
+# in the dist folder if they are the samples could be moved into the Application 
+# samples loop shown above.
+for sample in ['secure/sharedks/service',
+               'secure/sharedks/srpclientA',
+               'secure/sharedks/srpclientB',
+               'sessions']:
+    returnValue += env.Install('%s/libs' % sample, '$JARDIR/alljoyn.jar')
+    returnValue += env.Install('%s/libs/%s' % (sample, android_eabi), '$JAVA_DISTDIR/lib/liballjoyn_java.so')
+
+# Unit test runner
+env.Install('$JAVA_TESTDIR',
+            ['test/AndroidManifest.xml',
+             'test/.classpath',
+             'test/project.properties',
+             'test/.project',
+             'test/res',
+             'test/src'])
+env.Install('$JAVA_TESTDIR' + '/libs', '$JARDIR/alljoyn.jar')
+env.Install('$JAVA_TESTDIR' + '/libs', '$JARDIR/alljoyn_test.jar')
+env.Install('$JAVA_TESTDIR' + '/libs/%s' % android_eabi, '$JAVA_DISTDIR/lib/liballjoyn_java.so')
+env.Install('./test/libs/%s' % android_eabi, '$JAVA_DISTDIR/lib/liballjoyn_java.so')
+env.Install('./test/libs', '$JARDIR/alljoyn.jar')
+env.Install('./test/libs', '$JARDIR/alljoyn_test.jar')
+
+Return('returnValue')

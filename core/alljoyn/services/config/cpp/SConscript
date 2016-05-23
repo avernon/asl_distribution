@@ -1,0 +1,49 @@
+# Copyright AllSeen Alliance. All rights reserved.
+#
+#    Contributed by Qualcomm Connected Experiences, Inc.,
+#    with authorization from the AllSeen Alliance, Inc.
+#    
+#    Licensed under the Apache License, Version 2.0 (the "License");
+#    you may not use this file except in compliance with the License.
+#    You may obtain a copy of the License at
+#    
+#        http://www.apache.org/licenses/LICENSE-2.0
+#    
+#    Unless required by applicable law or agreed to in writing, software
+#    distributed under the License is distributed on an "AS IS" BASIS,
+#    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#    See the License for the specific language governing permissions and
+#    limitations under the License.
+#    
+#    Pursuant to Section 1 of the License, the work of authorship constituting
+#    a Work and any Contribution incorporated in the Work shall mean only that
+#    Contributor's code submissions authored by that Contributor.  Any rights
+#    granted under the License are conditioned upon acceptance of these
+#    clarifications.
+
+Import('config_env')
+
+if not config_env.has_key('_ALLJOYNCORE_'):
+    config_env.Append(LIBS = ['alljoyn'])
+    if config_env['BR'] == 'on' :
+        config_env.Prepend(LIBS = ['ajrouter'])
+    if config_env['OS'] == 'openwrt':
+        config_env.AppendUnique(LIBS = [ 'stdc++', 'pthread' ])
+
+# Make config dist a sub-directory of the alljoyn dist.  This avoids any conflicts with alljoyn dist targets.
+config_env['CONFIG_DISTDIR'] = config_env['DISTDIR'] + '/cpp'
+
+config_env.Install('$CONFIG_DISTDIR/inc/alljoyn/config', config_env.Glob('inc/alljoyn/config/*.h'))
+
+# Config libraries
+config_env.Install('$CONFIG_DISTDIR/lib', config_env.SConscript('src/SConscript', exports = ['config_env']))
+
+# Sample programs
+config_env.Install('$CONFIG_DISTDIR/bin/samples', config_env.SConscript('samples/SConscript', exports = ['config_env']))
+
+# only include command line samples, unit test, test programs if we are not 
+# building for iOS. No support on iOS for command line applications.
+## Unit tests have not yet been implemented for Config
+##if not (config_env['OS'] == 'darwin' and config_env['CPU'] in ['arm', 'armv7', 'armv7s', 'arm64',]):
+##    # Build unit Tests
+##    config_env.SConscript('unit_test/SConscript', exports = ['config_env'], variant_dir='$OBJDIR_CONFIG/unittest', duplicate = 0)

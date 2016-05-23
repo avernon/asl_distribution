@@ -1,0 +1,64 @@
+# Contributed by Qualcomm Connected Experiences, Inc.,
+# with authorization from the AllSeen Alliance, Inc.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# 
+# Pursuant to Section 1 of the License, the work of authorship constituting
+# a Work and any Contribution incorporated in the Work shall mean only that
+# Contributor's code submissions authored by that Contributor.  Any rights
+# granted under the License are conditioned upon acceptance of these
+# clarifications.
+import os
+import platform
+
+Import('env', 'CheckAJLib')
+
+def CheckAJCXXLib(context, ajlib, ajheader, sconsvarname, ajdistpath, stub = ''):
+    r = CheckAJLib(context, ajlib, ajheader, sconsvarname, ajdistpath, 'cpp', 'inc', '.cc', stub)
+    return r
+
+cenv = env.Clone()
+Export('cenv')
+
+
+cenv['CPU'] = platform.machine()
+
+cenv.SConscript('SConscript.target.$TARG')
+
+#######################################################
+# Check dependencies
+#######################################################
+config = Configure(cenv, custom_tests = { 'CheckAJLib' : CheckAJCXXLib })
+found_aj = config.CheckAJLib('alljoyn',  'alljoyn/BusAttachment.h', 'ALLJOYN_DIST',
+                             os.path.join('#../alljoyn/build', cenv['TARG'], cenv['CPU'], cenv['VARIANT'], 'dist'))
+config.CheckCXXHeader('qcc/String.h')
+cenv = config.Finish()
+
+# config.CheckLib() appends libraries, ajrouter is a static library and must be prepended.
+cenv.Prepend(LIBS = ['ajrouter'])
+
+config = Configure(cenv)
+found_ajrouter = config.CheckFunc('AllJoynRouterInit', '#include <alljoyn/Init.h>', 'c++')
+cenv = config.Finish()
+
+if cenv['VARIANT'] == 'release':
+    cenv.Append(CPPDEFINES = [ 'NDEBUG' ])
+
+if cenv['CPU'] == 'x86_64':
+    cenv.Append(CPPDEFINES=['QCC_CPU_X86_64'])
+else:
+    cenv.Append(CPPDEFINES=['QCC_CPU_X86'])
+
+if found_aj and found_ajrouter:
+    cenv.Program('#dist/bin/ajs_console', ['ajs_console.cc', 'ajs_textconsole.cc'])
+    cenv.Program('#dist/bin/ajs_console_c', ['ajs_console.cc', 'ajs_textconsole_c.c', 'ajs_console_c.cc', 'ajs_debug_c.cc'])

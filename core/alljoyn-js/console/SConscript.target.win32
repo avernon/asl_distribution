@@ -1,0 +1,45 @@
+# Contributed by Qualcomm Connected Experiences, Inc.,
+# with authorization from the AllSeen Alliance, Inc.
+# 
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+# 
+#     http://www.apache.org/licenses/LICENSE-2.0
+# 
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# 
+# Pursuant to Section 1 of the License, the work of authorship constituting
+# a Work and any Contribution incorporated in the Work shall mean only that
+# Contributor's code submissions authored by that Contributor.  Any rights
+# granted under the License are conditioned upon acceptance of these
+# clarifications.
+Import('cenv')
+
+cenv.Append(LIBS=['setupapi','user32','winmm','ws2_32','iphlpapi','secur32','Advapi32','crypt32','bcrypt','ncrypt'])
+# Compiler flags
+cenv.Append(CPPDEFINES=['QCC_OS_GROUP_WINDOWS'])
+cenv.Append(CXXFLAGS=['/nologo', '/vmm', '/vmg'])
+cenv.Append(CXXFLAGS=['/EHsc'])
+cenv.Append(CXXFLAGS=['/wd4355'])
+# Linker flags
+cenv.Append(LFLAGS=['/NODEFAULTLIB:libcmt.lib'])
+cenv.Append(LINKFLAGS=['/NODEFAULTLIB:libcmt.lib'])
+# Debug/Release variants
+if cenv['VARIANT'] == 'debug':
+    # Compiler flags for DEBUG builds
+    cenv['CCPDBFLAGS'] = '/Z7'
+    cenv.Append(CPPDEFINES=['_DEBUG', ('_ITERATOR_DEBUG_LEVEL', 2)])
+    # Linker flags for DEBUG builds
+    cenv.Append(CXXFLAGS=['/MDd', '/Od', '/Gd', '/Ob1', '/W3'])
+    cenv.Append(LINKFLAGS=['/debug'])
+else:
+    # Compiler flags for RELEASE builds
+    cenv.Append(CPPDEFINES=[('_ITERATOR_DEBUG_LEVEL', 0)])
+    cenv.Append(CXXFLAGS=['/MD', '/Gy', '/O1', '/Ob2', '/W3'])
+    # Linker flags for RELEASE builds
+    cenv.Append(LINKFLAGS=['/opt:ref'])
